@@ -42,7 +42,7 @@ impl Vault {
             credentials: Vec::new(),
             salt: salt,
             key: argon2.hash_password(password.as_ref(), &salt)?.to_string(),
-            creation_date: chrono::offset::Utc::now()
+            creation_date: chrono::offset::Utc::now(),
         }
     }
 }
