@@ -153,15 +153,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "crypto"
-version = "0.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bf1e6e5492f8f0830c37f301f6349e0dac8b2466e4fe89eef90e9eef906cd046"
-dependencies = [
- "crypto-common",
-]
-
-[[package]]
 name = "crypto-common"
 version = "0.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -300,7 +291,6 @@ dependencies = [
  "aes-gcm-siv",
  "argon2",
  "chrono",
- "crypto",
  "rand",
  "serde",
  "serde_json",
