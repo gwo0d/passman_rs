@@ -4,7 +4,7 @@ use argon2::{Argon2, PasswordHasher};
 use chrono;
 use rand;
 use std::fs::File;
-use std::io::Write;
+use std::io::{Read, Write};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
@@ -106,9 +106,25 @@ fn save_vault(vault: Vault) {
     println!("{:?}", json);
 }
 
+fn load_vault(name: String, password: String) -> Vault {
+    let filename = format!("{}.vault", name);
+    let file = File::open(filename);
+    let mut contents = String::new();
+    file.unwrap().read_to_string(&mut contents).expect("COULD NOT READ VAULT");
+    let vault: Vault = serde_json::from_str(&contents).unwrap();
+    if vault.key == hash_password(password, vault.salt.clone()) {
+        return vault;
+    } else {
+        panic!("INCORRECT PASSWORD");
+    }
+}
+
 fn main() {
     let mut vault = Vault::new("testvault".parse().unwrap(), "password".to_string());
     let cred1 = Credential::new("facebook".parse().unwrap(), "facebook.com".parse().unwrap(), "mark".parse().unwrap(), "thezuck".parse().unwrap(), String::new());
     vault.add_credential(cred1);
     save_vault(vault);
+
+    let vault = load_vault("testvault".parse().unwrap(), "password".to_string());
+    println!("{}", vault.credentials[0].password);
 }
