@@ -2,16 +2,19 @@ use argon2;
 use argon2::password_hash::SaltString;
 use argon2::{Argon2, PasswordHasher};
 use chrono;
-use chrono::{DateTime, Utc};
 use rand;
+use std::fs::File;
+use std::io::Write;
+use serde::{Deserialize, Serialize};
 
+#[derive(Serialize, Deserialize)]
 struct Credential {
     service_name: String,
     service_url: Option<String>,
     username: String,
     password: String,
     notes: String,
-    date_added: DateTime<Utc>,
+    date_added: String,
 }
 
 impl Credential {
@@ -21,7 +24,6 @@ impl Credential {
         username: String,
         password: String,
         notes: String,
-        date_added: DateTime<Utc>,
     ) -> Credential {
         Credential {
             service_name,
@@ -29,7 +31,7 @@ impl Credential {
             username,
             password,
             notes,
-            date_added,
+            date_added: chrono::offset::Utc::now().to_string(),
         }
     }
 
@@ -54,41 +56,31 @@ impl Credential {
     }
 }
 
+#[derive(Serialize, Deserialize)]
 struct Vault {
+    name: String,
     credentials: Vec<Credential>,
-    salt: SaltString,
+    salt: String,
     key: String,
-    creation_date: DateTime<Utc>,
+    creation_date: String,
 }
 
 impl Vault {
-    pub fn new(password: String) -> Vault {
-        let argon2 = Argon2::default();
-        let salt = SaltString::generate(&mut rand::rngs::OsRng);
+    pub fn new(name: String, password: String) -> Vault {
+        let salt = SaltString::generate(&mut rand::rngs::OsRng).to_string();
         Vault {
+            name,
             credentials: Vec::new(),
-            salt,
-            key: argon2.hash_password(password.as_ref(), &salt)?.to_string(),
-            creation_date: chrono::offset::Utc::now(),
+            salt: salt.clone(),
+            key: hash_password(password, salt.clone()),
+            creation_date: chrono::offset::Utc::now().to_string(),
         }
     }
 
     pub fn add_credential(
         &mut self,
-        service_name: String,
-        service_url: String,
-        username: String,
-        password: String,
-        notes: String,
+        credential: Credential,
     ) {
-        let credential = Credential::new(
-            service_name,
-            service_url,
-            username,
-            password,
-            notes,
-            chrono::offset::Utc::now(),
-        );
         self.credentials.push(credential);
     }
 
@@ -97,11 +89,26 @@ impl Vault {
     }
 
     pub fn change_vault_password(&mut self, new_password: String) {
-        let argon2 = Argon2::default();
-        self.key = argon2.hash_password(new_password.as_ref(), &self.salt)?.to_string();
+        self.key = hash_password(new_password, self.salt.clone())
     }
 }
 
+fn hash_password(password: String, salt: String) -> String {
+    let argon2 = Argon2::default();
+    argon2.hash_password(password.as_ref(), SaltString::from_b64(salt.as_ref()).unwrap().as_salt()).unwrap().to_string()
+}
+
+fn save_vault(vault: Vault) {
+    let filename = format!("{}.vault", vault.name);
+    let file = File::create(filename);
+    let json = serde_json::to_string(&vault).unwrap().to_string();
+    file.unwrap().write_all(json.as_bytes()).expect("COULD NOT WRITE TO VAULT");
+    println!("{:?}", json);
+}
+
 fn main() {
-    println!("Hello, world!");
+    let mut vault = Vault::new("testvault".parse().unwrap(), "password".to_string());
+    let cred1 = Credential::new("facebook".parse().unwrap(), "facebook.com".parse().unwrap(), "mark".parse().unwrap(), "thezuck".parse().unwrap(), String::new());
+    vault.add_credential(cred1);
+    save_vault(vault);
 }
