@@ -1,10 +1,12 @@
+use std::fs::File;
+use std::io::{Read, Write};
+
 use argon2;
 use argon2::password_hash::SaltString;
 use argon2::{Argon2, PasswordHasher};
+use bincode;
 use chrono;
 use rand;
-use std::fs::File;
-use std::io::{Read, Write};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
@@ -77,10 +79,7 @@ impl Vault {
         }
     }
 
-    pub fn add_credential(
-        &mut self,
-        credential: Credential,
-    ) {
+    pub fn add_credential(&mut self, credential: Credential) {
         self.credentials.push(credential);
     }
 
@@ -95,33 +94,59 @@ impl Vault {
 
 fn hash_password(password: String, salt: String) -> String {
     let argon2 = Argon2::default();
-    argon2.hash_password(password.as_ref(), SaltString::from_b64(salt.as_ref()).unwrap().as_salt()).unwrap().to_string()
+    argon2
+        .hash_password(
+            password.as_ref(),
+            SaltString::from_b64(salt.as_ref()).unwrap().as_salt(),
+        )
+        .unwrap()
+        .to_string()
+}
+
+fn encrypt_vault(vault: Vault) -> Vec<u8> {
+    let serialized_vault = bincode::serialize(&vault).unwrap();
+    let mut encrypted_vault = serialized_vault.clone();
+    for i in 0..serialized_vault.len() {
+        encrypted_vault[i] = serialized_vault[i] ^ 0b10101010;
+    }
+    encrypted_vault
+}
+
+fn decrypt_vault(encrypted_vault: Vec<u8>) -> Vault {
+    let mut decrypted_vault = encrypted_vault.clone();
+    for i in 0..encrypted_vault.len() {
+        decrypted_vault[i] = encrypted_vault[i] ^ 0b10101010;
+    }
+    bincode::deserialize(&decrypted_vault).unwrap()
 }
 
 fn save_vault(vault: Vault) {
-    let filename = format!("{}.vault", vault.name);
-    let file = File::create(filename);
-    let json = serde_json::to_string(&vault).unwrap().to_string();
-    file.unwrap().write_all(json.as_bytes()).expect("COULD NOT WRITE TO VAULT");
-    println!("{:?}", json);
+    let encrypted_vault = encrypt_vault(vault);
+    let mut file = File::create("../vault.txt").unwrap();
+    file.write_all(&encrypted_vault).unwrap();
 }
 
 fn load_vault(name: String, password: String) -> Vault {
-    let filename = format!("{}.vault", name);
-    let file = File::open(filename);
-    let mut contents = String::new();
-    file.unwrap().read_to_string(&mut contents).expect("COULD NOT READ VAULT");
-    let vault: Vault = serde_json::from_str(&contents).unwrap();
+    let mut file = File::open("../vault.txt").unwrap();
+    let mut encrypted_vault = Vec::new();
+    file.read_to_end(&mut encrypted_vault).unwrap();
+    let vault = decrypt_vault(encrypted_vault);
     if vault.key == hash_password(password, vault.salt.clone()) {
-        return vault;
+        vault
     } else {
-        panic!("INCORRECT PASSWORD");
+        panic!("Incorrect password")
     }
 }
 
 fn main() {
     let mut vault = Vault::new("testvault".parse().unwrap(), "password".to_string());
-    let cred1 = Credential::new("facebook".parse().unwrap(), "facebook.com".parse().unwrap(), "mark".parse().unwrap(), "thezuck".parse().unwrap(), String::new());
+    let cred1 = Credential::new(
+        "facebook".parse().unwrap(),
+        "facebook.com".parse().unwrap(),
+        "mark".parse().unwrap(),
+        "thezuck".parse().unwrap(),
+        String::new(),
+    );
     vault.add_credential(cred1);
     save_vault(vault);
 
