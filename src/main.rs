@@ -1,3 +1,4 @@
+// Import necessary libraries
 use std::fs::File;
 use std::io::{Read, Write};
 use std::str::FromStr;
@@ -8,12 +9,24 @@ use aes_gcm_siv::{Aes256GcmSiv, KeyInit, Nonce};
 use argon2;
 use argon2::Argon2;
 use chrono;
+use clearscreen;
 use rand;
 use rand::rngs::OsRng;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize)]
+const FIRST_MENU_ITEMS: [&str; 3] = ["Create New Vault", "Load Existing Vault", "Exit"];
+const MAIN_MENU_ITEMS: [&str; 6] = [
+    "Get Credentials",
+    "Add Credential",
+    "Remove Credential",
+    "Change Vault Password",
+    "Save Vault",
+    "Exit",
+];
+
+// Define the Credential struct
+#[derive(Serialize, Deserialize, Clone)]
 struct Credential {
     service_name: String,
     service_url: Option<String>,
@@ -23,7 +36,9 @@ struct Credential {
     date_added: String,
 }
 
+// Implement methods for the Credential struct
 impl Credential {
+    // Constructor for the Credential struct
     fn new(
         service_name: String,
         service_url: String,
@@ -41,6 +56,7 @@ impl Credential {
         }
     }
 
+    // Setter methods for the Credential struct
     pub fn set_service_name(&mut self, service_name: String) {
         self.service_name = service_name;
     }
@@ -62,6 +78,7 @@ impl Credential {
     }
 }
 
+// Define the Vault struct
 #[derive(Serialize, Deserialize)]
 struct Vault {
     name: String,
@@ -71,7 +88,9 @@ struct Vault {
     creation_date: String,
 }
 
+// Implement methods for the Vault struct
 impl Vault {
+    // Constructor for the Vault struct
     pub fn new(name: String, password: String) -> Vault {
         let salt: Vec<u8> = OsRng.gen::<[u8; 32]>().to_vec();
 
@@ -84,19 +103,27 @@ impl Vault {
         }
     }
 
+    // Method to add a credential to the vault
     pub fn add_credential(&mut self, credential: Credential) {
         self.credentials.push(credential);
     }
 
+    // Method to remove a credential from the vault
     pub fn remove_credential(&mut self, service_name: String) {
         self.credentials.retain(|x| x.service_name != service_name);
     }
 
+    // Method to change the vault password
     pub fn change_vault_password(&mut self, new_password: String) {
         self.key = hash_password(new_password, self.salt.clone())
     }
+
+    pub fn get_vec_credentials(&self) -> Vec<Credential> {
+        self.credentials.clone()
+    }
 }
 
+// Define the VaultFile struct
 #[derive(Serialize, Deserialize)]
 struct VaultFile {
     salt: Vec<u8>,
@@ -105,7 +132,9 @@ struct VaultFile {
     encrypted_vault: Vec<u8>,
 }
 
+// Implement methods for the VaultFile struct
 impl VaultFile {
+    // Constructor for the VaultFile struct
     pub fn new(
         salt: Vec<u8>,
         nonce: [u8; 12],
@@ -121,6 +150,34 @@ impl VaultFile {
     }
 }
 
+struct Menu {
+    options: Vec<String>,
+}
+
+impl Menu {
+    pub fn new(options: Vec<String>) -> Menu {
+        Menu { options }
+    }
+
+    pub fn display(&self) {
+        for (i, option) in self.options.iter().enumerate() {
+            println!("{}. {}", i + 1, option);
+        }
+    }
+
+    pub fn get_choice(&self) -> usize {
+        let mut choice = String::new();
+        println!("Enter your choice: ");
+        std::io::stdin()
+            .read_line(&mut choice)
+            .expect("COULD NOT READ LINE");
+        let choice = choice.trim().parse::<usize>().unwrap();
+        clear_screen();
+        choice
+    }
+}
+
+// Function to hash the password
 fn hash_password(password: String, salt: Vec<u8>) -> [u8; 32] {
     let mut key = [0u8; 32];
     Argon2::default()
@@ -129,12 +186,14 @@ fn hash_password(password: String, salt: Vec<u8>) -> [u8; 32] {
     key
 }
 
+// Function to save the vault to a file
 fn save_vault(vault_file: VaultFile) {
     let mut file = File::create(format!("{}.vault", vault_file.name)).unwrap();
     file.write_all(&serde_json::to_string(&vault_file).unwrap().as_bytes())
         .expect("COULD NOT SAVE VAULT");
 }
 
+// Function to encrypt the vault
 fn encrypt_vault(vault: &Vault) -> VaultFile {
     let plaintext = serde_json::to_string(&vault).unwrap();
     let salt = vault.salt.clone();
@@ -146,6 +205,7 @@ fn encrypt_vault(vault: &Vault) -> VaultFile {
     VaultFile::new(salt, nonce, vault.name.clone(), ciphertext.unwrap())
 }
 
+// Function to load the vault from a file
 fn load_vault(vault_name: String) -> VaultFile {
     let mut file = File::open(format!("{}.vault", vault_name)).unwrap();
     let mut contents = String::new();
@@ -154,6 +214,7 @@ fn load_vault(vault_name: String) -> VaultFile {
     vault_file
 }
 
+// Function to decrypt the vault
 fn decrypt_vault(vault_file: VaultFile, password: String) -> Vault {
     let nonce = Nonce::from_slice(vault_file.nonce.as_ref());
     let key = hash_password(password, vault_file.salt.clone());
@@ -163,21 +224,196 @@ fn decrypt_vault(vault_file: VaultFile, password: String) -> Vault {
     serde_json::from_str(&String::from_utf8(plaintext.unwrap()).unwrap()).unwrap()
 }
 
+fn clear_screen() {
+    clearscreen::clear().expect("FAILED TO CLEAR SCREEN");
+}
+
+// Main function
 fn main() {
-    let mut vault = Vault::new("testvault".parse().unwrap(), "password".to_string());
-    let cred1 = Credential::new(
-        "facebook".parse().unwrap(),
-        "facebook.com".parse().unwrap(),
-        "mark".parse().unwrap(),
-        "thezuck".parse().unwrap(),
-        String::new(),
-    );
+    clear_screen();
 
-    vault.add_credential(cred1);
-    let encrypted_vault = encrypt_vault(&vault);
+    let initial_menu = Menu::new(FIRST_MENU_ITEMS.iter().map(|x| x.to_string()).collect());
+    let main_menu = Menu::new(MAIN_MENU_ITEMS.iter().map(|x| x.to_string()).collect());
 
-    save_vault(encrypted_vault);
-    let vault_file = load_vault(String::from_str("testvault").unwrap());
-    let decrypted_vault = decrypt_vault(vault_file, "password".to_string());
-    println!("{}", decrypted_vault.credentials[0].service_name);
+    initial_menu.display();
+    let choice = initial_menu.get_choice();
+
+    let mut vault: Vault;
+
+    match choice {
+        1 => {
+            clear_screen();
+            println!("Enter the name of the vault: ");
+            let mut vault_name = String::new();
+            std::io::stdin()
+                .read_line(&mut vault_name)
+                .expect("COULD NOT READ LINE");
+            let vault_name = vault_name.trim().to_string();
+
+            println!("Enter the password for the vault: ");
+            let mut password = String::new();
+            std::io::stdin()
+                .read_line(&mut password)
+                .expect("COULD NOT READ LINE");
+            let password = password.trim().to_string();
+
+            vault = Vault::new(vault_name.clone(), password.clone());
+            let vault_file = encrypt_vault(&vault);
+            save_vault(vault_file);
+            clear_screen();
+        }
+
+        2 => {
+            clear_screen();
+            println!("Enter the name of the vault: ");
+            let mut vault_name = String::new();
+            std::io::stdin()
+                .read_line(&mut vault_name)
+                .expect("COULD NOT READ LINE");
+            let vault_name = vault_name.trim().to_string();
+
+            println!("Enter the password for the vault: ");
+            let mut password = String::new();
+            std::io::stdin()
+                .read_line(&mut password)
+                .expect("COULD NOT READ LINE");
+            let password = password.trim().to_string();
+
+            let vault_file = load_vault(vault_name.clone());
+            vault = decrypt_vault(vault_file, password.clone());
+            clear_screen();
+        }
+
+        3 => {
+            clear_screen();
+            return;
+        }
+
+        _ => {
+            clear_screen();
+            println!("Invalid choice");
+            return;
+        }
+    }
+
+    loop {
+        main_menu.display();
+        let choice = main_menu.get_choice();
+
+        match choice {
+            1 => {
+                clear_screen();
+                let credentials = vault.get_vec_credentials();
+                for credential in credentials {
+                    println!("Service Name: {}", credential.service_name);
+                    println!("Service URL: {}", credential.service_url.unwrap());
+                    println!("Username: {}", credential.username);
+                    println!("Password: {}", credential.password);
+                    println!("Notes: {}", credential.notes.unwrap());
+                    println!("Date Added: {}", credential.date_added);
+                    println!();
+                }
+            }
+
+            2 => {
+                clear_screen();
+                println!("Enter the service name: ");
+                let mut service_name = String::new();
+                std::io::stdin()
+                    .read_line(&mut service_name)
+                    .expect("COULD NOT READ LINE");
+                let service_name = service_name.trim().to_string();
+
+                println!("Enter the service URL: ");
+                let mut service_url = String::new();
+                std::io::stdin()
+                    .read_line(&mut service_url)
+                    .expect("COULD NOT READ LINE");
+                let service_url = service_url.trim().to_string();
+
+                println!("Enter the username: ");
+                let mut username = String::new();
+                std::io::stdin()
+                    .read_line(&mut username)
+                    .expect("COULD NOT READ LINE");
+                let username = username.trim().to_string();
+
+                println!("Enter the password: ");
+                let mut password = String::new();
+                std::io::stdin()
+                    .read_line(&mut password)
+                    .expect("COULD NOT READ LINE");
+                let password = password.trim().to_string();
+
+                println!("Enter any notes: ");
+                let mut notes = String::new();
+                std::io::stdin()
+                    .read_line(&mut notes)
+                    .expect("COULD NOT READ LINE");
+                let notes = notes.trim().to_string();
+
+                let credential =
+                    Credential::new(service_name, service_url, username, password, notes);
+                vault.add_credential(credential);
+                clear_screen();
+            }
+
+            3 => {
+                clear_screen();
+                println!("Enter the service name: ");
+                let mut service_name = String::new();
+                std::io::stdin()
+                    .read_line(&mut service_name)
+                    .expect("COULD NOT READ LINE");
+                let service_name = service_name.trim().to_string();
+
+                vault.remove_credential(service_name);
+                clear_screen();
+            }
+
+            4 => {
+                clear_screen();
+                println!("Enter the new password for the vault: ");
+                let mut new_password = String::new();
+                std::io::stdin()
+                    .read_line(&mut new_password)
+                    .expect("COULD NOT READ LINE");
+                let new_password = new_password.trim().to_string();
+
+                let mut current_password = String::new();
+                println!("Enter the current password to confirm: ");
+                std::io::stdin()
+                    .read_line(&mut current_password)
+                    .expect("COULD NOT READ LINE");
+                let current_password = current_password.trim().to_string();
+                let current_password_hash = hash_password(current_password, vault.salt.clone());
+
+                if current_password_hash != vault.key {
+                    println!("Invalid password");
+                    continue;
+                }
+
+                vault.change_vault_password(new_password);
+                clear_screen();
+            }
+
+            5 => {
+                clear_screen();
+                let vault_file = encrypt_vault(&vault);
+                save_vault(vault_file);
+                clear_screen();
+            }
+
+            6 => {
+                clear_screen();
+                return;
+            }
+
+            _ => {
+                clear_screen();
+                println!("Invalid choice");
+                return;
+            }
+        }
+    }
 }
