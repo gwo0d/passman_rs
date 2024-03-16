@@ -1,17 +1,17 @@
-use argon2;
-use argon2::password_hash::SaltString;
-use argon2::{Argon2};
-use chrono;
-use rand;
 use std::fs::File;
 use std::io::{Read, Write};
-use serde::{Deserialize, Serialize};
-use aes_gcm_siv;
-use aes_gcm_siv::{Aes256GcmSiv, KeyInit, Nonce};
-use aes_gcm_siv::aead::Aead;
-use aes_gcm_siv::aead::rand_core::RngCore;
-use rand::rngs::OsRng;
+use std::str::FromStr;
 
+use aes_gcm_siv;
+use aes_gcm_siv::aead::Aead;
+use aes_gcm_siv::{Aes256GcmSiv, KeyInit, Nonce};
+use argon2;
+use argon2::Argon2;
+use chrono;
+use rand;
+use rand::rngs::OsRng;
+use rand::Rng;
+use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
 struct Credential {
@@ -19,7 +19,7 @@ struct Credential {
     service_url: Option<String>,
     username: String,
     password: String,
-    notes: String,
+    notes: Option<String>,
     date_added: String,
 }
 
@@ -36,7 +36,7 @@ impl Credential {
             service_url: Some(service_url),
             username,
             password,
-            notes,
+            notes: Some(notes),
             date_added: chrono::offset::Utc::now().to_string(),
         }
     }
@@ -58,7 +58,7 @@ impl Credential {
     }
 
     pub fn set_notes(&mut self, notes: String) {
-        self.notes = notes;
+        self.notes = Some(notes);
     }
 }
 
@@ -66,14 +66,15 @@ impl Credential {
 struct Vault {
     name: String,
     credentials: Vec<Credential>,
-    salt: String,
+    salt: Vec<u8>,
     key: [u8; 32],
     creation_date: String,
 }
 
 impl Vault {
     pub fn new(name: String, password: String) -> Vault {
-        let salt = SaltString::generate(&mut OsRng).to_string();
+        let salt: Vec<u8> = OsRng.gen::<[u8; 32]>().to_vec();
+
         Vault {
             name,
             credentials: Vec::new(),
@@ -83,10 +84,7 @@ impl Vault {
         }
     }
 
-    pub fn add_credential(
-        &mut self,
-        credential: Credential,
-    ) {
+    pub fn add_credential(&mut self, credential: Credential) {
         self.credentials.push(credential);
     }
 
@@ -99,49 +97,87 @@ impl Vault {
     }
 }
 
-fn hash_password(password: String, salt: String) -> [u8; 32] {
+#[derive(Serialize, Deserialize)]
+struct VaultFile {
+    salt: Vec<u8>,
+    nonce: [u8; 12],
+    name: String,
+    encrypted_vault: Vec<u8>,
+}
+
+impl VaultFile {
+    pub fn new(
+        salt: Vec<u8>,
+        nonce: [u8; 12],
+        name: String,
+        encrypted_vault: Vec<u8>,
+    ) -> VaultFile {
+        VaultFile {
+            salt,
+            nonce,
+            name,
+            encrypted_vault,
+        }
+    }
+}
+
+fn hash_password(password: String, salt: Vec<u8>) -> [u8; 32] {
     let mut key = [0u8; 32];
-    Argon2::default().hash_password_into(password.as_ref(), salt.as_ref(), &mut key).expect("COULD NOT HASH PASSWORD");
+    Argon2::default()
+        .hash_password_into(password.as_ref(), &*salt, &mut key)
+        .expect("COULD NOT HASH PASSWORD");
     key
 }
 
-fn encrypt_vault(vault: Vault, plaintext: String, nonce: Nonce) -> Vec<u8> {
+fn save_vault(vault_file: VaultFile) {
+    let mut file = File::create(format!("{}.vault", vault_file.name)).unwrap();
+    file.write_all(&serde_json::to_string(&vault_file).unwrap().as_bytes())
+        .expect("COULD NOT SAVE VAULT");
+}
+
+fn encrypt_vault(vault: &Vault) -> VaultFile {
+    let plaintext = serde_json::to_string(&vault).unwrap();
+    let salt = vault.salt.clone();
+    let nonce = OsRng.gen::<[u8; 12]>();
+
     let cipher = Aes256GcmSiv::new_from_slice(vault.key.as_ref()).unwrap();
-    let ciphertext = cipher.encrypt(&nonce, plaintext.as_bytes().as_ref());
-    return ciphertext.unwrap();
+    let mut ciphertext = cipher.encrypt(&Nonce::from_slice(&nonce), plaintext.as_bytes().as_ref());
+
+    VaultFile::new(salt, nonce, vault.name.clone(), ciphertext.unwrap())
 }
 
-fn save_vault(vault: Vault) {
-    let filename = format!("{}.vault", vault.name);
-    let file = File::create(filename);
-    let json = serde_json::to_string(&vault).unwrap().to_string();
-    let mut nonce_bytes = [0u8; 12];
-    OsRng.fill_bytes(&mut nonce_bytes);
-    let nonce = Nonce::from(nonce_bytes);
-    let mut ciphertext = nonce.to_vec();
-    ciphertext.append(&mut encrypt_vault(vault, json.clone(), nonce));
-    file.unwrap().write_all(&*ciphertext).expect("COULD NOT WRITE TO VAULT");
-    println!("{:?}", json);
-}
-
-fn load_vault(name: String, password: String) -> Vault {
-    let filename = format!("{}.vault", name);
-    let file = File::open(filename);
+fn load_vault(vault_name: String) -> VaultFile {
+    let mut file = File::open(format!("{}.vault", vault_name)).unwrap();
     let mut contents = String::new();
-    file.unwrap().read_to_string(&mut contents).expect("COULD NOT READ VAULT");
-    let vault: Vault = serde_json::from_str(&contents).unwrap();
-    if vault.key == hash_password(password, vault.salt.clone()) {
-        return vault;
-    } else {
-        panic!("INCORRECT PASSWORD");
-    }
+    file.read_to_string(&mut contents).unwrap();
+    let vault_file: VaultFile = serde_json::from_str(&contents).unwrap();
+    vault_file
+}
+
+fn decrypt_vault(vault_file: VaultFile, password: String) -> Vault {
+    let nonce = Nonce::from_slice(vault_file.nonce.as_ref());
+    let key = hash_password(password, vault_file.salt.clone());
+    let cipher = Aes256GcmSiv::new_from_slice(key.as_ref()).unwrap();
+    let plaintext = cipher.decrypt(nonce, vault_file.encrypted_vault.as_ref());
+
+    serde_json::from_str(&String::from_utf8(plaintext.unwrap()).unwrap()).unwrap()
 }
 
 fn main() {
     let mut vault = Vault::new("testvault".parse().unwrap(), "password".to_string());
-    let cred1 = Credential::new("facebook".parse().unwrap(), "facebook.com".parse().unwrap(), "mark".parse().unwrap(), "thezuck".parse().unwrap(), String::new());
+    let cred1 = Credential::new(
+        "facebook".parse().unwrap(),
+        "facebook.com".parse().unwrap(),
+        "mark".parse().unwrap(),
+        "thezuck".parse().unwrap(),
+        String::new(),
+    );
+
     vault.add_credential(cred1);
-    save_vault(vault);
-    //let vault = load_vault("testvault".parse().unwrap(), "password".to_string());
-    //println!("{}", vault.credentials[0].password);
+    let encrypted_vault = encrypt_vault(&vault);
+
+    save_vault(encrypted_vault);
+    let vault_file = load_vault(String::from_str("testvault").unwrap());
+    let decrypted_vault = decrypt_vault(vault_file, "password".to_string());
+    println!("{}", decrypted_vault.credentials[0].service_name);
 }
