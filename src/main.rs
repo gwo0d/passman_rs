@@ -16,6 +16,8 @@ use rand::rngs::OsRng;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 
+mod main_test;
+
 const FIRST_MENU_ITEMS: [&str; 3] = ["Create New Vault", "Load Existing Vault", "Exit"];
 
 const MAIN_MENU_ITEMS: [&str; 6] = [
