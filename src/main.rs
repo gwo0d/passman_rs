@@ -10,12 +10,14 @@ use argon2;
 use argon2::Argon2;
 use chrono;
 use clearscreen;
+use cli_table::{print_stdout, Cell, Style, Table};
 use rand;
 use rand::rngs::OsRng;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 
 const FIRST_MENU_ITEMS: [&str; 3] = ["Create New Vault", "Load Existing Vault", "Exit"];
+
 const MAIN_MENU_ITEMS: [&str; 6] = [
     "Get Credentials",
     "Add Credential",
@@ -79,7 +81,7 @@ impl Credential {
 }
 
 // Define the Vault struct
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 struct Vault {
     name: String,
     credentials: Vec<Credential>,
@@ -174,6 +176,62 @@ impl Menu {
         let choice = choice.trim().parse::<usize>().unwrap();
         clear_screen();
         choice
+    }
+}
+
+struct Cli {
+    window_x: u8,
+    window_y: u8,
+    vault: Vault,
+}
+
+impl Cli {
+    pub fn new(window_x: u8, window_y: u8, vault: Vault) -> Cli {
+        Cli {
+            window_x,
+            window_y,
+            vault,
+        }
+    }
+
+    pub fn display(&self, revealed: Option<Vec<usize>>) {
+        let mut output = vec![];
+        let mut index = 1;
+
+        let mut revealed = if revealed.is_none() {
+            Vec::new()
+        } else {
+            revealed.unwrap()
+        };
+
+        for credential in self.vault.get_vec_credentials() {
+            output.push(vec![
+                index.to_string().cell(),
+                credential.service_name.cell(),
+                credential.service_url.unwrap().cell(),
+                credential.username.cell(),
+                if revealed.contains(&index) {
+                    credential.password.cell()
+                } else {
+                    "********".cell()
+                },
+                credential.notes.unwrap().cell(),
+                credential.date_added.cell(),
+            ]);
+            index += 1;
+        }
+
+        let table = output.table().title(vec![
+            "Index".cell().bold(true),
+            "Service Name".cell().bold(true),
+            "Service URL".cell().bold(true),
+            "Username".cell().bold(true),
+            "Password".cell().bold(true),
+            "Notes".cell().bold(true),
+            "Date Added".cell().bold(true),
+        ]);
+
+        print_stdout(table).unwrap();
     }
 }
 
@@ -303,16 +361,22 @@ fn main() {
         match choice {
             1 => {
                 clear_screen();
-                let credentials = vault.get_vec_credentials();
-                for credential in credentials {
-                    println!("Service Name: {}", credential.service_name);
-                    println!("Service URL: {}", credential.service_url.unwrap());
-                    println!("Username: {}", credential.username);
-                    println!("Password: {}", credential.password);
-                    println!("Notes: {}", credential.notes.unwrap());
-                    println!("Date Added: {}", credential.date_added);
-                    println!();
-                }
+                let cli = Cli::new(80, 24, vault.clone());
+                cli.display(None);
+                println!("Enter the index(s) of the credential(s) you would like, seperated by a comma, to reveal the password(s): ");
+                let mut indexes = String::new();
+                std::io::stdin()
+                    .read_line(&mut indexes)
+                    .expect("COULD NOT READ LINE");
+
+                let indexes: Vec<usize> = indexes
+                    .split(",")
+                    .map(|x| x.trim().parse::<usize>().expect("NO INDEXES PROVIDED") - 1)
+                    .collect();
+
+                clear_screen();
+
+                cli.display(Some(indexes));
             }
 
             2 => {
