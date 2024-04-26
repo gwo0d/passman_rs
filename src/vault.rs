@@ -21,6 +21,22 @@ impl Vault {
         }
     }
 
+    pub fn get_vault_name(&self) -> &str {
+        &self.vault_name
+    }
+
+    pub fn get_salt(&self) -> [u8; 32] {
+        self.salt
+    }
+
+    pub fn get_vault_key(&self) -> [u8; 32] {
+        self.vault_key
+    }
+
+    pub fn set_vault_name(&mut self, vault_name: String) {
+        self.vault_name = vault_name;
+    }
+
     pub fn change_password(&mut self, password: &[u8]) -> None {
         self.vault_key = derive_key(password, &self.salt)
     }
