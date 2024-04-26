@@ -1,7 +1,10 @@
-use crate::credential::Credential;
-use crate::utils::{derive_key, generate_salt, generate_random_id};
-use crate::constants::{KEY_SIZE, SALT_SIZE};
+use serde::{Deserialize, Serialize};
 
+use crate::constants::{KEY_SIZE, SALT_SIZE};
+use crate::credential::Credential;
+use crate::utils::{derive_key, generate_random_id, generate_salt};
+
+#[derive(Serialize, Deserialize)]
 pub struct Vault {
     vault_name: String,
     salt: [u8; SALT_SIZE],
@@ -33,20 +36,20 @@ impl Vault {
         &self.vault_key
     }
 
-    pub fn set_vault_name(&mut self, vault_name: String) -> None {
+    pub fn set_vault_name(&mut self, vault_name: String) {
         self.vault_name = vault_name;
     }
 
-    pub fn set_vault_password(&mut self, password: &[u8]) -> None {
+    pub fn set_vault_password(&mut self, password: &[u8]) {
         self.vault_key = derive_key(password, &self.salt);
     }
 
-    pub fn add_credential(&mut self, username: String, password: String, service: String, notes: String) -> None {
+    pub fn add_credential(&mut self, username: String, password: String, service: String, notes: String) {
         let mut id: u64 = generate_random_id();
         let mut available: bool = true;
 
         loop {
-            for credential in self.credentials {
+            for credential in self.credentials.iter() {
                 if credential.get_id() == &id {
                     available = false;
                     break;
@@ -63,19 +66,13 @@ impl Vault {
         self.credentials.push(Credential::new(id, username, password, service, notes));
     }
 
-    pub fn search_credentials_by_name(&mut self, search_string: &String) -> Option<Vec<Credential>> {
-        let mut results: Vec<Credential> = Vec::new();
-        for credential in self.credentials {
-            if credential.get_service().contains(search_string) || credential.get_username().contains(search_string) || credential.get_notes().contains(search_string) {
-                results.push(credential)
-            }
-        }
-        Some(results)
+    pub fn search_credential_by_str(&self, search_string: String) -> Vec<&Credential> {
+        self.credentials.iter().filter(|cred| cred.get_service().contains(&search_string)).collect()
     }
 
     pub fn delete_credential_by_id(&mut self, id: u64) -> bool {
-        let index = self.credentials.iter().position(|&x| x.get_id() == &id).expect("\nCredential Not Found\n");
-        if Some(index) {
+        let index = self.credentials.iter().position(|cred| cred.get_id() == &id).expect("\nCredential Not Found\n");
+        if Some(index).is_some() {
             self.credentials.remove(index);
             true
         } else {
