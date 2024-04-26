@@ -25,23 +25,23 @@ impl Vault {
         &self.vault_name
     }
 
-    pub fn get_salt(&self) -> [u8; 32] {
-        self.salt
+    pub fn get_salt(&self) -> &[u8; 32] {
+        &self.salt
     }
 
-    pub fn get_vault_key(&self) -> [u8; 32] {
-        self.vault_key
+    pub fn get_vault_key(&self) -> &[u8; 32] {
+        &self.vault_key
     }
 
-    pub fn set_vault_name(&mut self, vault_name: String) {
+    pub fn set_vault_name(&mut self, vault_name: String) -> None {
         self.vault_name = vault_name;
     }
 
     pub fn set_vault_password(&mut self, password: &[u8]) -> None {
-        self.vault_key = derive_key(password, &self.salt)
+        self.vault_key = derive_key(password, &self.salt);
     }
 
-    pub fn add_credential(&mut self, username: String, password: String, service: String, notes: Option<String>) -> None {
+    pub fn add_credential(&mut self, username: String, password: String, service: String, notes: String) -> None {
         let mut id: u64 = generate_random_id();
         let mut available: bool = true;
 
@@ -60,6 +60,26 @@ impl Vault {
             }
         }
 
-        self.credentials.push(Credential::new(id, username, password, service, notes))
+        self.credentials.push(Credential::new(id, username, password, service, notes));
+    }
+
+    pub fn search_credentials_by_name(&mut self, search_string: &String) -> Option<Vec<Credential>> {
+        let mut results: Vec<Credential> = Vec::new();
+        for credential in self.credentials {
+            if credential.get_service().contains(search_string) || credential.get_username().contains(search_string) || credential.get_notes().contains(search_string) {
+                results.push(credential)
+            }
+        }
+        Some(results)
+    }
+
+    pub fn delete_credential_by_id(&mut self, id: u64) -> bool {
+        let index = self.credentials.iter().position(|&x| x.get_id() == &id).expect("\nCredential Not Found\n");
+        if Some(index) {
+            self.credentials.remove(index);
+            true
+        } else {
+            false
+        }
     }
 }
