@@ -37,7 +37,7 @@ impl Vault {
         self.vault_name = vault_name;
     }
 
-    pub fn change_password(&mut self, password: &[u8]) -> None {
+    pub fn set_vault_password(&mut self, password: &[u8]) -> None {
         self.vault_key = derive_key(password, &self.salt)
     }
 
