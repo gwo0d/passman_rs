@@ -1,4 +1,5 @@
 pub struct Credential {
+    id: u64,
     username: String,
     password: String,
     service: String,
@@ -6,10 +7,13 @@ pub struct Credential {
 }
 
 impl Credential {
-    pub fn new(username: String, password: String, service: String, notes: Option<String>) -> Self {
-        Self { username, password, service, notes }
+    pub fn new(id: u64, username: String, password: String, service: String, notes: Option<String>) -> Self {
+        Self { id, username, password, service, notes }
     }
 
+    pub fn get_id(&self) -> &u64 {
+        &self.id
+    }
     pub fn get_username(&self) -> &str {
         &self.username
     }

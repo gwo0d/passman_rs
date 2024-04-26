@@ -13,3 +13,7 @@ pub fn generate_salt() -> [u8; SALT_SIZE] {
     OsRng.fill_bytes(&mut salt);
     salt
 }
+
+pub fn generate_random_id() -> u64 {
+    OsRng.next_u64()
+}

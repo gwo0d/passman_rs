@@ -1,3 +1,8 @@
-fn main() {
-    println!("Hello, world!");
-}
+mod utils;
+mod constants;
+mod credential;
+mod vault;
+
+use crate::utils::*;
+
+fn main() {}
