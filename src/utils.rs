@@ -1,7 +1,7 @@
 use argon2::Argon2;
 use rand::{Rng, RngCore, rngs::OsRng};
 use serde_json::{from_str, to_string};
-use aes_gcm_siv::{aead::{Aead, KeyInit}, AeadCore, Aes256GcmSiv, Nonce};
+use aes_gcm_siv::{aead::{Aead, KeyInit}, AeadCore, Aes256GcmSiv};
 use base64::prelude::*;
 
 use crate::constants::{KEY_BYTES, SALT_BYTES};
