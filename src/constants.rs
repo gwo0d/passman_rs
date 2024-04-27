@@ -1,2 +1,2 @@
-pub const KEY_SIZE: usize = 32;
-pub const SALT_SIZE: usize = 32;
+pub const KEY_BYTES: usize = 32;
+pub const SALT_BYTES: usize = 32;
