@@ -11,5 +11,8 @@ passman_rs is a simple CLI password manager, written entirely in Rust.
 - Cargo.lock: *Dependency Management **(do not edit)***
 - Cargo.toml: *Project Metadata and Dependencies*
 
+# Disclaimer
+No security guarantees are made with regard to this project, as it is designed as a proof-of-concept. Any real-world use should be considered carefully, and is at the user's risk.
+
 # License
 [Mit License](LICENSE)
