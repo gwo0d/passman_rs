@@ -4,6 +4,8 @@ use crate::constants::{KEY_BYTES, SALT_BYTES};
 use crate::credential::Credential;
 use crate::utils::{derive_key, generate_random_id, generate_salt};
 
+/// The `Vault` struct represents a secure container for storing credentials.
+/// It includes a vault name, a salt for password hashing, a vault key, and a list of credentials.
 #[derive(Serialize, Deserialize)]
 pub struct Vault {
     vault_name: String,
@@ -13,6 +15,7 @@ pub struct Vault {
 }
 
 impl Vault {
+    /// Creates a new `Vault` with the given name and password.
     pub fn new(vault_name: &str, password: &str) -> Self {
         let salt = generate_salt();
 
@@ -24,26 +27,33 @@ impl Vault {
         }
     }
 
+    /// Returns the name of the vault.
     pub fn get_vault_name(&self) -> &str {
         &self.vault_name
     }
 
+    /// Returns the salt used for password hashing.
     pub fn get_salt(&self) -> &[u8; 32] {
         &self.salt
     }
 
+    /// Returns the vault key.
     pub fn get_vault_key(&self) -> &[u8; 32] {
         &self.vault_key
     }
 
+    /// Sets the name of the vault.
     pub fn set_vault_name(&mut self, vault_name: String) {
         self.vault_name = vault_name;
     }
 
+    /// Sets the vault password by deriving a new key from the given password and the existing salt.
     pub fn set_vault_password(&mut self, password: &[u8]) {
         self.vault_key = derive_key(password, &self.salt);
     }
 
+    /// Adds a new credential to the vault.
+    /// Generates a unique ID for the credential and ensures it does not conflict with existing IDs.
     pub fn add_credential(&mut self, username: String, password: String, service: String, notes: String) {
         let mut id: u64 = generate_random_id();
         let mut available: bool = true;
@@ -66,17 +76,21 @@ impl Vault {
         self.credentials.push(Credential::new(id, username, password, service, notes));
     }
 
+    /// Searches for credentials by service name.
+    /// Returns a vector of references to the matching credentials.
     pub fn search_credential_by_str(&self, search_string: String) -> Vec<&Credential> {
-        self.credentials.iter().filter(|cred| cred.get_service().contains(&search_string)).collect()
+        self.credentials.iter().filter(|cred| cred.get_service().contains(&search_string) || cred.get_notes().contains(&search_string)).collect()
     }
 
+    /// Deletes a credential by its ID.
+    /// Returns true if the credential was found and deleted, false otherwise.
     pub fn delete_credential_by_id(&mut self, id: u64) -> bool {
-        let index = self.credentials.iter().position(|cred| cred.get_id() == &id).expect("\nCredential Not Found\n");
-        if Some(index).is_some() {
-            self.credentials.remove(index);
-            true
-        } else {
-            false
+        match self.credentials.iter().position(|cred| cred.get_id() == &id) {
+            Some(index) => {
+                self.credentials.remove(index);
+                true
+            },
+            None => false,
         }
     }
 }
