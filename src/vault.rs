@@ -13,13 +13,13 @@ pub struct Vault {
 }
 
 impl Vault {
-    pub fn new(vault_name: String, password: &[u8]) -> Self {
+    pub fn new(vault_name: &str, password: &str) -> Self {
         let salt = generate_salt();
 
         Self {
-            vault_name,
+            vault_name: vault_name.to_string(),
             salt,
-            vault_key: derive_key(password, &salt),
+            vault_key: derive_key(password.as_bytes(), &salt),
             credentials: Vec::new(),
         }
     }
