@@ -1,3 +1,5 @@
+**Note: This project is not complete.**
+
 # Introduction
 passman_rs is a simple CLI password manager, written entirely in Rust.
 
