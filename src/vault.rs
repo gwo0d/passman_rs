@@ -89,7 +89,7 @@ impl Vault {
             Some(index) => {
                 self.credentials.remove(index);
                 true
-            },
+            }
             None => false,
         }
     }

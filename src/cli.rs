@@ -5,9 +5,9 @@ pub(crate) struct Cli {
 }
 
 impl Cli {
-    pub fn new(menu_options: Vec<String>) -> Self {
+    pub fn new(menu_options: Vec<&str>) -> Self {
         Self {
-            menu_options,
+            menu_options: menu_options.iter().map(|&option| option.to_string()).collect()
         }
     }
 

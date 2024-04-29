@@ -1,11 +1,15 @@
+use std::fs;
+use std::io::{stdin, stdout, Write};
+use std::path::Path;
+
 use aes_gcm_siv::{aead::{Aead, KeyInit}, AeadCore, Aes256GcmSiv, Nonce};
 use argon2::Argon2;
 use base64::prelude::*;
+use clearscreen::clear;
 use rand::{Rng, RngCore, rngs::OsRng};
 use serde_json::{from_str, to_string};
-use clearscreen::clear;
 
-use crate::constants::{KEY_BYTES, SALT_BYTES};
+use crate::constants::{KEY_BYTES, SALT_BYTES, VAULT_DIRECTORY};
 use crate::vault::Vault;
 
 /// The `utils` module provides utility functions for the application.
@@ -36,20 +40,20 @@ pub(crate) fn generate_random_id() -> u64 {
 
 /// Serializes the given `Vault` into a JSON string.
 /// Returns the serialized `Vault`.
-pub(crate) fn serialise_vault(vault: &Vault) -> String {
+fn serialise_vault(vault: &Vault) -> String {
     to_string(&vault).expect("\nSerialisation Failed\n")
 }
 
 /// Deserializes the given JSON string into a `Vault`.
 /// Returns the deserialized `Vault`.
-pub(crate) fn deserialise_vault(json: String) -> Vault {
+fn deserialise_vault(json: String) -> Vault {
     let vault: Vault = from_str(&json).expect("\nDeserialisation Failed\n");
     vault
 }
 
 /// Encrypts the given `Vault` using the AES-GCM-SIV encryption algorithm.
 /// Returns the encrypted `Vault` as a string.
-pub(crate) fn encrypt_vault(vault: Vault) -> String {
+fn encrypt_vault(vault: &Vault) -> String {
     let vault_name = vault.get_vault_name();
     let key = vault.get_vault_key();
     let salt = BASE64_STANDARD.encode(vault.get_salt());
@@ -63,7 +67,7 @@ pub(crate) fn encrypt_vault(vault: Vault) -> String {
 
 /// Decrypts the given encrypted `Vault` string using the AES-GCM-SIV encryption algorithm.
 /// Returns the decrypted `Vault`.
-pub(crate) fn decrypt_vault(encrypted_vault_string: &str, password: &str) -> Vault {
+fn decrypt_vault(encrypted_vault_string: &str, password: &str) -> Vault {
     let mut split = encrypted_vault_string.split(':');
     split.next();
     let salt = BASE64_STANDARD.decode(split.next().expect("\nInvalid Vault String\n")).expect("\nInvalid Base64\n");
@@ -77,16 +81,52 @@ pub(crate) fn decrypt_vault(encrypted_vault_string: &str, password: &str) -> Vau
 }
 
 /// Saves the given string content to a file at the given file path.
-pub(crate) fn save_string_to_file(file_path: &str, content: &str) {
-    std::fs::write(file_path, content).expect("\nFailed to Write to File\n");
+fn save_string_to_file(file_path: &str, content: &str) {
+    let path = Path::new(file_path);
+    let dir = path.parent().unwrap();
+
+    if !dir.exists() {
+        fs::create_dir_all(&dir).expect("\nFailed to Create Directory\n");
+    }
+
+    let mut file = fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .open(path)
+        .expect("\nFailed to Create File\n");
+
+    file.write((&content).as_ref()).expect("\nFailed to Write to File\n");
 }
 
 /// Reads the content of a file at the given file path as a string.
 /// Returns the file content.
-pub(crate) fn read_string_from_file(file_path: &str) -> String {
-    std::fs::read_to_string(file_path).expect("\nFailed to Read from File\n")
+fn read_string_from_file(file_path: &str) -> String {
+    fs::read_to_string(file_path).expect("\nFailed to Read from File\n")
+}
+
+pub(crate) fn save_vault(vault: &Vault) {
+    let vault_name = vault.get_vault_name();
+    let vault_string = encrypt_vault(&vault);
+    let vault_path = format!("{}/{}.vault", VAULT_DIRECTORY, vault_name);
+
+    save_string_to_file(&vault_path, &vault_string);
+}
+
+pub(crate) fn load_vault(vault_name: &str, vault_password: &str) -> Vault {
+    let vault_path = format!("{}/{}.vault", VAULT_DIRECTORY, vault_name);
+    let vault_string = read_string_from_file(&vault_path);
+    decrypt_vault(&vault_string, vault_password)
 }
 
 pub(crate) fn clear_screen() {
     clear().expect("\nFailed to Clear Screen\n");
+}
+
+pub(crate) fn get_input(prompt: &str) -> String {
+    print!("{}", prompt);
+    stdout().flush().expect("\nFailed to Flush Stdout\n");
+    let mut input = String::new();
+    stdin().read_line(&mut input).expect("\nFailed to Read Input\n");
+    input.trim().to_string()
 }
