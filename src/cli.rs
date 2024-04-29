@@ -1,6 +1,6 @@
 use std::io;
 
-struct Cli {
+pub(crate) struct Cli {
     menu_options: Vec<String>,
 }
 

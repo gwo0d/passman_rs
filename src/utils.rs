@@ -15,7 +15,7 @@ use crate::vault::Vault;
 
 /// Derives a key from the given password and salt using the Argon2 password hashing function.
 /// Returns the derived key.
-pub fn derive_key(password: &[u8], salt: &[u8]) -> [u8; KEY_BYTES] {
+pub(crate) fn derive_key(password: &[u8], salt: &[u8]) -> [u8; KEY_BYTES] {
     let mut key = [0u8; KEY_BYTES];
     Argon2::default().hash_password_into(password, salt, &mut key).expect("\nKey Derivation Failed\n");
     key
@@ -23,33 +23,33 @@ pub fn derive_key(password: &[u8], salt: &[u8]) -> [u8; KEY_BYTES] {
 
 /// Generates a random salt using the operating system's random number generator.
 /// Returns the generated salt.
-pub fn generate_salt() -> [u8; SALT_BYTES] {
+pub(crate) fn generate_salt() -> [u8; SALT_BYTES] {
     let salt: [u8; SALT_BYTES] = OsRng.gen();
     salt
 }
 
 /// Generates a random ID using the operating system's random number generator.
 /// Returns the generated ID.
-pub fn generate_random_id() -> u64 {
+pub(crate) fn generate_random_id() -> u64 {
     OsRng.next_u64()
 }
 
 /// Serializes the given `Vault` into a JSON string.
 /// Returns the serialized `Vault`.
-pub fn serialise_vault(vault: &Vault) -> String {
+pub(crate) fn serialise_vault(vault: &Vault) -> String {
     to_string(&vault).expect("\nSerialisation Failed\n")
 }
 
 /// Deserializes the given JSON string into a `Vault`.
 /// Returns the deserialized `Vault`.
-pub fn deserialise_vault(json: String) -> Vault {
+pub(crate) fn deserialise_vault(json: String) -> Vault {
     let vault: Vault = from_str(&json).expect("\nDeserialisation Failed\n");
     vault
 }
 
 /// Encrypts the given `Vault` using the AES-GCM-SIV encryption algorithm.
 /// Returns the encrypted `Vault` as a string.
-pub fn encrypt_vault(vault: Vault) -> String {
+pub(crate) fn encrypt_vault(vault: Vault) -> String {
     let vault_name = vault.get_vault_name();
     let key = vault.get_vault_key();
     let salt = BASE64_STANDARD.encode(vault.get_salt());
@@ -63,7 +63,7 @@ pub fn encrypt_vault(vault: Vault) -> String {
 
 /// Decrypts the given encrypted `Vault` string using the AES-GCM-SIV encryption algorithm.
 /// Returns the decrypted `Vault`.
-pub fn decrypt_vault(encrypted_vault_string: &str, password: &str) -> Vault {
+pub(crate) fn decrypt_vault(encrypted_vault_string: &str, password: &str) -> Vault {
     let mut split = encrypted_vault_string.split(':');
     split.next();
     let salt = BASE64_STANDARD.decode(split.next().expect("\nInvalid Vault String\n")).expect("\nInvalid Base64\n");
@@ -77,16 +77,16 @@ pub fn decrypt_vault(encrypted_vault_string: &str, password: &str) -> Vault {
 }
 
 /// Saves the given string content to a file at the given file path.
-pub fn save_string_to_file(file_path: &str, content: &str) {
+pub(crate) fn save_string_to_file(file_path: &str, content: &str) {
     std::fs::write(file_path, content).expect("\nFailed to Write to File\n");
 }
 
 /// Reads the content of a file at the given file path as a string.
 /// Returns the file content.
-pub fn read_string_from_file(file_path: &str) -> String {
+pub(crate) fn read_string_from_file(file_path: &str) -> String {
     std::fs::read_to_string(file_path).expect("\nFailed to Read from File\n")
 }
 
-pub fn clear_screen() {
+pub(crate) fn clear_screen() {
     clear().expect("\nFailed to Clear Screen\n");
 }

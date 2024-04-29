@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 /// The `Credential` struct represents a user's credentials for a specific service.
 /// It includes an id, username, password, service, and notes.
 #[derive(Serialize, Deserialize)]
-pub struct Credential {
+pub(crate) struct Credential {
     id: u64,
     username: String,
     password: String,

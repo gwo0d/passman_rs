@@ -7,7 +7,7 @@ use crate::utils::{derive_key, generate_random_id, generate_salt};
 /// The `Vault` struct represents a secure container for storing credentials.
 /// It includes a vault name, a salt for password hashing, a vault key, and a list of credentials.
 #[derive(Serialize, Deserialize)]
-pub struct Vault {
+pub(crate) struct Vault {
     vault_name: String,
     salt: [u8; SALT_BYTES],
     vault_key: [u8; KEY_BYTES],

@@ -3,8 +3,8 @@
 
 /// The size of the key in bytes.
 /// This constant is used in key derivation functions.
-pub const KEY_BYTES: usize = 32;
+pub(crate) const KEY_BYTES: usize = 32;
 
 /// The size of the salt in bytes.
 /// This constant is used in salt generation functions.
-pub const SALT_BYTES: usize = 32;
+pub(crate) const SALT_BYTES: usize = 32;
