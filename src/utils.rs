@@ -3,6 +3,7 @@ use argon2::Argon2;
 use base64::prelude::*;
 use rand::{Rng, RngCore, rngs::OsRng};
 use serde_json::{from_str, to_string};
+use clearscreen::clear;
 
 use crate::constants::{KEY_BYTES, SALT_BYTES};
 use crate::vault::Vault;
@@ -84,4 +85,8 @@ pub fn save_string_to_file(file_path: &str, content: &str) {
 /// Returns the file content.
 pub fn read_string_from_file(file_path: &str) -> String {
     std::fs::read_to_string(file_path).expect("\nFailed to Read from File\n")
+}
+
+pub fn clear_screen() {
+    clear().expect("\nFailed to Clear Screen\n");
 }
